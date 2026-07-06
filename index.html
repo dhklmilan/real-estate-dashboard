@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meridian Estates | Property Map Dashboard</title>
+
+  <!-- Leaflet core CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Google Font for a clean, upscale typographic feel -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="dashboard">
+
+    <!-- ============================= SIDEBAR ============================= -->
+    <aside id="sidebar">
+
+      <header class="sidebar-header">
+        <div class="brand">
+          <span class="brand-mark">M</span>
+          <div class="brand-text">
+            <h1>Meridian Estates</h1>
+            <p>Land &amp; Residential Listings</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="filter-bar" id="filter-bar">
+        <button class="filter-btn active" data-filter="All">All</button>
+        <button class="filter-btn" data-filter="Available">Available</button>
+        <button class="filter-btn" data-filter="Sold">Sold</button>
+      </div>
+
+      <div class="listings-meta">
+        <span id="listings-count">4 properties</span>
+      </div>
+
+      <div id="listings-container">
+        <!-- Listing cards are injected here by app.js -->
+      </div>
+
+    </aside>
+
+    <!-- ============================== MAP ================================ -->
+    <main id="map-wrapper">
+      <div id="map"></div>
+    </main>
+
+  </div>
+
+  <!-- Leaflet core JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Data payload must load before app logic -->
+  <script src="properties.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
