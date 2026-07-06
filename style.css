@@ -342,98 +342,62 @@ h1, h2, h3 {
 }
 
 /* ============================== RESPONSIVE ================================ */
+@media (max-width:860px){
 
-@media (max-width: 860px) {
-  html, body { overflow: auto; }
-
-  .dashboard {
-    flex-direction: column;
-    height: auto;
-    min-height: 100vh;
-  }
-
-  #sidebar {
-    width: 100%;
-    min-width: 0;
-    height: auto;
-    max-height: 46vh;
-    min-height: 0;
-    order: 2;
-    border-right: none;
-    border-top: 1px solid var(--line);
-  }
-
-  #map-wrapper {
-    height: 54vh;
-    order: 1;
-  }
-
-  #listings-container {
-    max-height: none;
-  }
-  .dashboard {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
+html,body{
+    overflow:hidden;
 }
 
-#sidebar {
-  width: 860px;
-  min-width: 400px;
-  height: 100vh;
-  background: #ffffff;
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.dashboard{
+    display:flex;
+    flex-direction:column;
+    height:100vh;
 }
 
-#map-wrapper {
-  flex: 1;
-  height: 100vh;
-  position: relative;
+#map-wrapper{
+    order:1;
+    height:45vh;
+    width:100%;
 }
 
-#map {
-  height: 100%;
-  width: 100%;
-  background: var(--off-white);
-}
-}
-
-@media (max-width: 480px) {
-  .sidebar-header { padding: 18px 16px 12px 16px; }
-  .filter-bar { padding: 12px 16px; }
-  .listings-meta { padding: 10px 16px 4px 16px; }
-  #listings-container { padding: 6px 12px 20px 12px; }
-.dashboard {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
+#sidebar{
+    order:2;
+    width:100%;
+    min-width:0;
+    max-height:none;
+    flex:1;
+    border-right:none;
+    border-top:1px solid var(--line);
 }
 
-#sidebar {
-  width: 480px;
-  min-width: 400px;
-  height: 100vh;
-  background: #ffffff;
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+#listings-container{
+    flex:1;
+    overflow-y:auto;
 }
 
-#map-wrapper {
-  flex: 1;
-  height: 100vh;
-  position: relative;
 }
 
-#map {
-  height: 100%;
-  width: 100%;
-  background: var(--off-white);
+@media (max-width:480px){
+
+.sidebar-header{
+    padding:18px 16px 12px;
 }
 
+.filter-bar{
+    padding:12px 16px;
+}
+
+.listings-meta{
+    padding:10px 16px 4px;
+}
+
+#listings-container{
+    padding:8px 12px 20px;
+}
+
+.card-top-row{
+    flex-direction:column;
+    align-items:flex-start;
+}
 
 }
