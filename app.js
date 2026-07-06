@@ -53,26 +53,34 @@
       }
     ).addTo(map);
 
-    // Mobile browsers frequently finish resizing the layout (address bar
-    // collapsing, orientation settling, media queries applying) slightly
-    // AFTER Leaflet has already measured the #map container. That mismatch
-    // is what causes a blank/white map on phones. Forcing a couple of
-    // delayed invalidateSize() calls makes Leaflet re-measure and redraw
-    // its tiles once the real, final layout is in place.
+    // Fallback delayed re-measures for browsers without ResizeObserver.
     setTimeout(function () { map.invalidateSize(); }, 200);
-    setTimeout(function () { map.invalidateSize(); }, 600);
+    setTimeout(function () { map.invalidateSize(); }, 800);
+    window.addEventListener("load", function () { map.invalidateSize(); });
+
+    // ResizeObserver watches the map's actual pixel size and re-measures
+    // the instant it changes — this is what actually fixes the blank/white
+    // map on mobile, because it doesn't rely on guessing a delay. Any
+    // layout shift (address bar collapsing, fonts loading, media query
+    // switching sidebar/map order, orientation change) triggers this
+    // immediately regardless of cause.
+    if ("ResizeObserver" in window) {
+      var mapEl = document.getElementById("map");
+      var ro = new ResizeObserver(function () {
+        map.invalidateSize();
+      });
+      ro.observe(mapEl);
+    }
   }
 
   // ------------------------------------------------------------------
-  // RESPONSIVE MAP RESIZING
+  // RESPONSIVE MAP RESIZING (fallback for browsers without ResizeObserver)
   // ------------------------------------------------------------------
   function bindResizeHandling() {
     window.addEventListener("resize", function () {
       map.invalidateSize();
     });
 
-    // orientationchange fires on phones/tablets before resize does, and
-    // the viewport dimensions aren't reliable until slightly after.
     window.addEventListener("orientationchange", function () {
       setTimeout(function () { map.invalidateSize(); }, 300);
     });

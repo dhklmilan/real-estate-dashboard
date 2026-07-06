@@ -1,12 +1,4 @@
-/**
- * properties.js
- * -----------------------------------------------------------------------
- * Static spatial data payload for the real estate dashboard.
- * Stored as a plain global variable (instead of a fetched .geojson file)
- * so the site can be hosted on GitHub Pages / opened locally without
- * tripping CORS restrictions on file:// or static-host requests.
- * -----------------------------------------------------------------------
- */
+
 
 var realEstateData = {
   "type": "FeatureCollection",
@@ -93,3 +85,4 @@ var realEstateData = {
     }
   ]
 };
+
