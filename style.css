@@ -83,6 +83,10 @@ h1, h2, h3 {
   background: var(--navy);
   color: #fff;
   flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .brand {
@@ -341,6 +345,358 @@ h1, h2, h3 {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
 }
 
+/* ============================ ADMIN TOGGLE BUTTON ========================= */
+
+.admin-toggle-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  margin-top: 2px;
+}
+
+.admin-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.admin-toggle-btn.is-active {
+  background: var(--emerald);
+  border-color: var(--emerald);
+  color: #fff;
+}
+
+/* ================================ ADMIN BAR ================================ */
+
+.admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 24px;
+  background: var(--emerald-soft);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.admin-bar-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #0a7a55;
+}
+
+.admin-bar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ================================ BUTTONS ================================= */
+
+.admin-btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.admin-btn-primary {
+  background: var(--navy);
+  color: #fff;
+}
+.admin-btn-primary:hover { background: #16202f; }
+
+.admin-btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--slate);
+}
+.admin-btn-ghost:hover { border-color: var(--slate-light); color: var(--navy); }
+
+.admin-btn-outline {
+  background: #fff;
+  border-color: var(--navy);
+  color: var(--navy);
+}
+.admin-btn-outline:hover { background: var(--navy); color: #fff; }
+
+.admin-btn-outline.is-drawing {
+  background: var(--emerald);
+  border-color: var(--emerald);
+  color: #fff;
+}
+
+.admin-btn-danger {
+  background: #fff;
+  border-color: var(--coral);
+  color: var(--coral);
+}
+.admin-btn-danger:hover { background: var(--coral); color: #fff; }
+
+.admin-btn.full-width { width: 100%; }
+
+/* Small edit/delete icon buttons layered onto cards and popups */
+.card-admin-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.icon-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--off-white);
+  color: var(--slate);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.icon-btn:hover { border-color: var(--slate-light); color: var(--navy); }
+.icon-btn.icon-btn-danger:hover { border-color: var(--coral); color: var(--coral); background: var(--coral-soft); }
+
+/* ================================ TYPE FILTER CHIPS ======================== */
+
+.filter-bar-secondary {
+  padding-top: 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.filter-chip {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--line);
+  background: #fff;
+  color: var(--slate);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.filter-chip:hover { border-color: var(--slate-light); color: var(--navy); }
+
+.filter-chip.active {
+  background: var(--navy-soft);
+  border-color: var(--navy-soft);
+  border-style: solid;
+  color: #fff;
+}
+
+/* ================================== MODALS ================================= */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+}
+
+.modal-box-wide { max-width: 560px; }
+.modal-box-small { max-width: 340px; }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--slate-light);
+  cursor: pointer;
+  padding: 4px;
+}
+.modal-close:hover { color: var(--navy); }
+
+.modal-body { padding: 20px 24px; }
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px 22px 24px;
+  justify-content: flex-end;
+}
+
+.modal-hint {
+  font-size: 13px;
+  color: var(--slate);
+  margin: 0 0 14px 0;
+  line-height: 1.5;
+}
+
+.modal-hint.small { font-size: 12px; margin-top: 8px; margin-bottom: 0; }
+
+/* ================================ FORM ELEMENTS ============================ */
+
+.form-row { margin-bottom: 16px; }
+.form-row.two-col {
+  display: flex;
+  gap: 14px;
+}
+.form-row.two-col .form-col { flex: 1; }
+
+.form-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--navy);
+  background: var(--off-white);
+  transition: border-color 0.15s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--emerald);
+  background: #fff;
+}
+
+.form-input-file {
+  width: 100%;
+  font-size: 13px;
+  color: var(--slate);
+}
+
+.form-error {
+  font-size: 12.5px;
+  color: var(--coral);
+  font-weight: 600;
+  margin: 8px 0 0 0;
+}
+
+.image-preview {
+  margin-top: 10px;
+  width: 100%;
+  max-height: 150px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented-btn {
+  flex: 1;
+  padding: 9px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  background: #fff;
+  color: var(--slate);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.segmented-btn + .segmented-btn { border-left: 1px solid var(--line); }
+
+.segmented-btn.active {
+  background: var(--navy);
+  color: #fff;
+}
+
+.geometry-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.geometry-status {
+  font-size: 12.5px;
+  color: var(--slate);
+}
+
+.geometry-status.is-set { color: #0a7a55; font-weight: 600; }
+
+.hidden { display: none !important; }
+
+/* ============================ LEAFLET LAYER CONTROL ======================== */
+
+.leaflet-control-layers {
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-md) !important;
+  border: 1px solid var(--line) !important;
+  font-family: 'Inter', sans-serif;
+}
+
+.leaflet-control-layers-toggle {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 10px 12px !important;
+  color: var(--navy);
+  font-size: 13px;
+}
+
 /* ============================== RESPONSIVE ================================ */
 @media (max-width:860px){
 
@@ -374,6 +730,13 @@ html,body{
     flex:1;
     overflow-y:auto;
 }
+
+.admin-bar {
+  padding: 10px 16px;
+  flex-wrap: wrap;
+}
+
+.modal-box-wide { max-width: 100%; }
 
 }
 
