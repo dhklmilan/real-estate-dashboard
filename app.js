@@ -32,6 +32,7 @@
     renderGeoJson();
     renderListings();
     bindFilterButtons();
+    bindResizeHandling();
   }
 
   function initMap() {
@@ -51,6 +52,30 @@
         maxZoom: 20
       }
     ).addTo(map);
+
+    // Mobile browsers frequently finish resizing the layout (address bar
+    // collapsing, orientation settling, media queries applying) slightly
+    // AFTER Leaflet has already measured the #map container. That mismatch
+    // is what causes a blank/white map on phones. Forcing a couple of
+    // delayed invalidateSize() calls makes Leaflet re-measure and redraw
+    // its tiles once the real, final layout is in place.
+    setTimeout(function () { map.invalidateSize(); }, 200);
+    setTimeout(function () { map.invalidateSize(); }, 600);
+  }
+
+  // ------------------------------------------------------------------
+  // RESPONSIVE MAP RESIZING
+  // ------------------------------------------------------------------
+  function bindResizeHandling() {
+    window.addEventListener("resize", function () {
+      map.invalidateSize();
+    });
+
+    // orientationchange fires on phones/tablets before resize does, and
+    // the viewport dimensions aren't reliable until slightly after.
+    window.addEventListener("orientationchange", function () {
+      setTimeout(function () { map.invalidateSize(); }, 300);
+    });
   }
 
   // ------------------------------------------------------------------
