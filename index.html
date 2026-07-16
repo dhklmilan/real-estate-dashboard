@@ -148,16 +148,24 @@
               <span id="geometry-status" class="geometry-status">No location set yet</span>
             </div>
             <p class="modal-hint small">
-              Click "Draw on Map," then place a point (Residential) or trace a parcel boundary (Land) directly on the map.
+              Click "Draw on Map," zoom in first for precision (scroll, pinch, or the +/− control), then click to place a point (Residential) or each corner of a parcel boundary (Land). For a parcel, double-click or click the first corner again to finish — the area (m²) shows live as you trace it.
             </p>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-col">
-            <label class="form-label" for="field-image">Property Image</label>
-            <input type="file" id="field-image" class="form-input-file" accept="image/*" />
-            <img id="image-preview" class="image-preview hidden" alt="Preview" />
+            <label class="form-label" for="field-image">Property Photos <span class="form-label-sub">(up to 5)</span></label>
+            <input type="file" id="field-image" class="form-input-file" accept="image/*" multiple />
+            <div id="image-preview-grid" class="image-preview-grid"></div>
+            <p id="image-limit-note" class="modal-hint small hidden">Maximum of 5 photos reached — remove one to add another.</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label" for="field-description">Description <span class="form-label-sub">(optional)</span></label>
+            <textarea id="field-description" class="form-textarea" rows="4" placeholder="Add any details buyers should know — layout, condition, nearby amenities, zoning, etc."></textarea>
           </div>
         </div>
 

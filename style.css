@@ -292,6 +292,27 @@ h1, h2, h3 {
   color: var(--slate);
 }
 
+/* Property description — kept visually separate from the price/type/size
+   meta row with its own hairline divider. Clamped to 3 lines so a long
+   description can't blow out the fixed-width popup or the card layout;
+   the full text is stored either way, this is just the preview. */
+.card-description {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--slate);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.popup-card .card-description {
+  -webkit-line-clamp: 2;
+}
+
 /* ============================= LEAFLET OVERRIDES ========================== */
 
 .leaflet-popup-content-wrapper {
@@ -619,6 +640,26 @@ h1, h2, h3 {
   color: var(--slate);
 }
 
+.form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--navy);
+  background: var(--off-white);
+  transition: border-color 0.15s ease;
+  resize: vertical;
+  min-height: 90px;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--emerald);
+  background: #fff;
+}
+
 .form-error {
   font-size: 12.5px;
   color: var(--coral);
@@ -626,14 +667,85 @@ h1, h2, h3 {
   margin: 8px 0 0 0;
 }
 
-.image-preview {
+.form-label-sub {
+  font-weight: 400;
+  color: var(--slate-light);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Up to 5 photo thumbnails in the Add/Edit Property form, each removable. */
+.image-preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 10px;
-  width: 100%;
-  max-height: 150px;
-  object-fit: cover;
-  border-radius: 10px;
+}
+
+.image-preview-item {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
   border: 1px solid var(--line);
 }
+
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.image-preview-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.65);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview-remove:hover { background: var(--coral); }
+
+/* Small clickable thumbnail strip shown on cards/popups with 2+ photos */
+.gallery-strip {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 0 8px;
+  background: #fff;
+}
+
+.gallery-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.6;
+  border: 2px solid transparent;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.gallery-thumb:hover { opacity: 0.9; }
+
+.gallery-thumb.active {
+  opacity: 1;
+  border-color: var(--emerald);
+}
+
+.popup-card .gallery-strip { padding: 6px 10px 0 10px; }
 
 .segmented {
   display: flex;
@@ -702,17 +814,25 @@ h1, h2, h3 {
 
 html,body{
     overflow:hidden;
+    height:100vh;
+    height:100dvh; /* accounts for mobile browser address/toolbar chrome */
 }
 
 .dashboard{
     display:flex;
     flex-direction:column;
     height:100vh;
+    height:100dvh;
 }
 
 #map-wrapper{
     order:1;
-    height:45vh;
+    /* The base (desktop) rule sets "flex: 1" (basis 0%), which would otherwise
+       override any height set here and force a 50/50 split with the sidebar.
+       Explicitly reset flex-grow/shrink/basis so this fixed height actually wins. */
+    flex: 0 0 34vh;
+    flex: 0 0 34dvh; /* accounts for mobile browser address/toolbar chrome */
+    min-height:180px;
     width:100%;
 }
 
@@ -722,13 +842,83 @@ html,body{
     min-width:0;
     max-height:none;
     flex:1;
+    min-height:0;   /* CRITICAL: without this, a flex child won't shrink below its
+                       content's natural height, so the sidebar (header + filters +
+                       listings) grows taller than the space left below the map and
+                       the extra content is clipped off-screen with no way to scroll
+                       to it, since html/body have overflow:hidden. */
     border-right:none;
     border-top:1px solid var(--line);
 }
 
 #listings-container{
     flex:1;
+    min-height:0;
     overflow-y:auto;
+}
+
+/* The sidebar "chrome" above the list — header, admin bar, both filter
+   rows, and the results-count line — was eating most of the screen on
+   phones (long title wrapping to 2 lines, generous desktop padding),
+   leaving only a sliver for the actual property list below it. Locking
+   each of these to a compact, fixed height (flex-shrink:0) and trimming
+   their padding/font-size reclaims that space for #listings-container,
+   which takes 100% of what's left and is the only thing that scrolls. */
+.sidebar-header,
+.admin-bar,
+.filter-bar,
+.listings-meta {
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: 12px 16px 10px 16px;
+}
+
+.brand { gap: 10px; }
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+  border-radius: 8px;
+}
+
+.brand-text h1 {
+  font-size: 14.5px;
+  line-height: 1.25;
+}
+
+/* Tagline dropped on mobile — not worth the vertical space it costs. */
+.brand-text p { display: none; }
+
+.admin-toggle-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.filter-bar {
+  padding: 8px 16px 6px 16px;
+  gap: 6px;
+}
+
+.filter-btn {
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.filter-bar-secondary {
+  padding-top: 2px;
+  padding-bottom: 8px;
+}
+
+.filter-chip {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.listings-meta {
+  padding: 6px 16px 4px 16px;
 }
 
 .admin-bar {
@@ -738,20 +928,50 @@ html,body{
 
 .modal-box-wide { max-width: 100%; }
 
+/* Bigger, easier-to-hit zoom buttons on touch screens, so a tap meant for
+   the zoom control can't accidentally miss and land on the map itself. */
+.leaflet-control-zoom a {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  font-size: 20px !important;
+}
+
 }
 
 @media (max-width:480px){
 
+#map-wrapper{
+    flex: 0 0 26vh;
+    flex: 0 0 26dvh;
+    min-height:150px;
+}
+
 .sidebar-header{
-    padding:18px 16px 12px;
+    padding:10px 14px 8px;
+}
+
+.brand-mark{
+    width:28px;
+    height:28px;
+    font-size:13px;
+}
+
+.brand-text h1{
+    font-size:13.5px;
 }
 
 .filter-bar{
-    padding:12px 16px;
+    padding:7px 14px 5px;
+}
+
+.filter-bar-secondary{
+    padding-top:2px;
+    padding-bottom:6px;
 }
 
 .listings-meta{
-    padding:10px 16px 4px;
+    padding:5px 14px 4px;
 }
 
 #listings-container{

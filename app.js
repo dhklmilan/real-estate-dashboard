@@ -24,6 +24,24 @@
   var ADMIN_PASSWORD = "meridian2026"; // change this — see security note above
   var STORAGE_KEY_PROPERTIES = "meridianEstates.properties.v1";
   var STORAGE_KEY_ADMIN = "meridianEstates.isAdmin.v1";
+  var MAX_IMAGES = 5;              // hard cap on photos per property
+  var IMAGE_MAX_DIMENSION = 1280;  // longest side, px — keeps localStorage usage sane
+  var IMAGE_JPEG_QUALITY = 0.75;
+
+  // Zoom level at which a Land polygon switches from a simplified bounding
+  // box "rectangle" (low zoom, easier to see/click when it's small on
+  // screen) to its real, drawn shape (high zoom, once there's room to show
+  // detail). This is the ONLY number that controls the switch — kept as a
+  // single shared constant so the transition happens at the exact same
+  // zoom level for every polygon feature, everywhere it's checked.
+  var SHAPE_DETAIL_ZOOM_THRESHOLD = 17;
+
+  // Minimum on-screen size (px) for a Land parcel's low-zoom rectangle.
+  // A tiny parcel's true geographic bounding box can shrink to a sliver
+  // when zoomed out — this pads it so it stays as visible as the fixed
+  // 9px-radius circle markers used for Residential points.
+  var MIN_RECT_PIXEL_WIDTH = 34;
+  var MIN_RECT_PIXEL_HEIGHT = 24;
 
   var STATUS_COLORS = {
     Available: "#10B981",
@@ -50,6 +68,7 @@
 
   var properties = [];          // mutable working set of GeoJSON features
   var layersById = {};          // id -> Leaflet layer, for sidebar <-> map sync
+  var polygonLayers = [];       // Polygon-type layers currently on the map, for zoom-based shape swapping
 
   var currentStatusFilter = "All";
   var currentTypeFilter = "All";
@@ -57,7 +76,7 @@
   var isAdmin = false;
   var editingPropertyId = null; // null = "add" mode, otherwise the id being edited
   var pendingGeometry = null;   // geometry captured via the draw tool for the open form
-  var pendingImageDataUrl = null;
+  var pendingImages = [];       // up to MAX_IMAGES data-URLs for the open form
   var confirmCallback = null;
 
   // ------------------------------------------------------------------
@@ -74,6 +93,7 @@
     bindResizeHandling();
     restoreAdminSession();
     renderAll();
+    fitMapToAllProperties(false); // initial view: zoom out to show every property
   }
 
   // ------------------------------------------------------------------
@@ -174,6 +194,10 @@
     // Fires whenever an admin finishes drawing a marker or polygon.
     map.on(L.Draw.Event.CREATED, onDrawCreated);
 
+    // Swap each Land polygon between its bounding-box rectangle and its
+    // real shape as the user zooms past SHAPE_DETAIL_ZOOM_THRESHOLD.
+    map.on("zoomend", updateAllPolygonShapes);
+
     // Robust fix for the "blank map on mobile" issue: re-measure the
     // instant the map's actual container size changes, for any reason.
     setTimeout(function () { map.invalidateSize(); }, 200);
@@ -187,11 +211,112 @@
     }
   }
 
+  // Zooms/pans so every property (not just the currently-filtered ones) is
+  // visible. Used once on initial load, and again right after a new
+  // property is added, so the view always "zooms out" to include it.
+  // Nothing else about the map (markers, click-to-focus, popups) is touched.
+  function fitMapToAllProperties(animate) {
+    if (!properties.length) return;
+    var tempLayer = L.geoJSON({ type: "FeatureCollection", features: properties });
+    var bounds = tempLayer.getBounds();
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: animate !== false });
+    }
+  }
+
   function bindResizeHandling() {
     window.addEventListener("resize", function () { map.invalidateSize(); });
     window.addEventListener("orientationchange", function () {
       setTimeout(function () { map.invalidateSize(); }, 300);
     });
+  }
+
+  // ------------------------------------------------------------------
+  // ZOOM-DEPENDENT POLYGON DETAIL (rectangle at low zoom, real shape at high zoom)
+  // ------------------------------------------------------------------
+
+  // True while the map is zoomed out past the switch point.
+  function isLowZoom() {
+    return map.getZoom() < SHAPE_DETAIL_ZOOM_THRESHOLD;
+  }
+
+  // Bounding-box ring (GeoJSON [lng,lat] winding, closed) for a Polygon
+  // geometry's outer ring — this becomes the simplified "rectangle" shape.
+  function computeBoundingBoxRing(geometry) {
+    var ring = geometry.coordinates[0];
+    var minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+    ring.forEach(function (c) {
+      if (c[0] < minLng) minLng = c[0];
+      if (c[0] > maxLng) maxLng = c[0];
+      if (c[1] < minLat) minLat = c[1];
+      if (c[1] > maxLat) maxLat = c[1];
+    });
+    return [
+      [minLng, minLat],
+      [maxLng, minLat],
+      [maxLng, maxLat],
+      [minLng, maxLat],
+      [minLng, minLat]
+    ];
+  }
+
+  // GeoJSON rings are [lng,lat]; Leaflet's setLatLngs wants LatLng objects.
+  function ringToLatLngs(ring) {
+    return ring.map(function (c) { return L.latLng(c[1], c[0]); });
+  }
+
+  // Takes a raw geographic bounding-box ring and pads it — in pixel space,
+  // at the current zoom — so it never renders smaller than
+  // MIN_RECT_PIXEL_WIDTH x MIN_RECT_PIXEL_HEIGHT on screen. The rectangle
+  // grows toward its true geographic size as the map zooms in, and never
+  // shrinks below the minimum, so small parcels stay visible instead of
+  // getting lost against the basemap.
+  function computeVisibleRectangleLatLngs(boundingBoxRing) {
+    var minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+    boundingBoxRing.forEach(function (c) {
+      if (c[0] < minLng) minLng = c[0];
+      if (c[0] > maxLng) maxLng = c[0];
+      if (c[1] < minLat) minLat = c[1];
+      if (c[1] > maxLat) maxLat = c[1];
+    });
+
+    var zoom = map.getZoom();
+    var swPoint = map.project(L.latLng(minLat, minLng), zoom);
+    var nePoint = map.project(L.latLng(maxLat, maxLng), zoom);
+
+    var pixelWidth = Math.abs(nePoint.x - swPoint.x);
+    var pixelHeight = Math.abs(swPoint.y - nePoint.y); // screen y is inverted vs. lat
+
+    var centerPoint = L.point((swPoint.x + nePoint.x) / 2, (swPoint.y + nePoint.y) / 2);
+    var halfW = Math.max(pixelWidth / 2, MIN_RECT_PIXEL_WIDTH / 2);
+    var halfH = Math.max(pixelHeight / 2, MIN_RECT_PIXEL_HEIGHT / 2);
+
+    var nw = map.unproject(L.point(centerPoint.x - halfW, centerPoint.y - halfH), zoom);
+    var se = map.unproject(L.point(centerPoint.x + halfW, centerPoint.y + halfH), zoom);
+
+    return [
+      L.latLng(nw.lat, nw.lng),
+      L.latLng(nw.lat, se.lng),
+      L.latLng(se.lat, se.lng),
+      L.latLng(se.lat, nw.lng),
+      L.latLng(nw.lat, nw.lng)
+    ];
+  }
+
+  // Applies the correct shape to one polygon layer for the current zoom.
+  // Cheap and idempotent (just re-sets coordinates on the existing layer),
+  // so it never disturbs that layer's style, popup, or event bindings —
+  // the transition is a clean swap in place, not a teardown/rebuild, so
+  // hover state, open popups, and the sidebar stay in sync.
+  function applyShapeForZoom(layer) {
+    var target = isLowZoom()
+      ? computeVisibleRectangleLatLngs(layer._boundingBoxRing)
+      : layer._actualLatLngs;
+    layer.setLatLngs(target);
+  }
+
+  function updateAllPolygonShapes() {
+    polygonLayers.forEach(applyShapeForZoom);
   }
 
   // ------------------------------------------------------------------
@@ -215,6 +340,7 @@
       map.removeLayer(geoJsonLayer);
     }
     layersById = {};
+    polygonLayers = [];
 
     var collection = { type: "FeatureCollection", features: getFilteredFeatures() };
 
@@ -251,6 +377,14 @@
     var props = feature.properties;
     layersById[props.id] = layer;
 
+    // Land parcels get the low-zoom rectangle / high-zoom real-shape swap.
+    if (feature.geometry.type === "Polygon") {
+      layer._actualLatLngs = ringToLatLngs(feature.geometry.coordinates[0]);
+      layer._boundingBoxRing = computeBoundingBoxRing(feature.geometry); // raw, unpadded — padding is applied per-zoom
+      polygonLayers.push(layer);
+      applyShapeForZoom(layer); // set the correct shape immediately, at creation
+    }
+
     layer.bindPopup(buildPopupHtml(props));
 
     layer.on({
@@ -282,7 +416,49 @@
   // ------------------------------------------------------------------
   // POPUP + CARD MARKUP
   // ------------------------------------------------------------------
+
+  // Backward compatible: older/seed listings only have a single imageUrl.
+  function getImages(props) {
+    if (props.images && props.images.length) return props.images;
+    if (props.imageUrl) return [props.imageUrl];
+    return [PLACEHOLDER_IMAGE];
+  }
+
+  // Small thumbnail strip shown only when a listing has more than one photo.
+  // Clicking a thumbnail swaps the main image — no extra state needed since
+  // each thumbnail's own src is the full-size image.
+  function buildGalleryHtml(images) {
+    if (images.length <= 1) return "";
+    var thumbs = images.slice(0, MAX_IMAGES).map(function (src, i) {
+      return '<img class="gallery-thumb' + (i === 0 ? " active" : "") + '" src="' + src + '" data-gallery-thumb alt="Photo ' + (i + 1) + '" />';
+    }).join("");
+    return '<div class="gallery-strip">' + thumbs + "</div>";
+  }
+
+  function wireGalleryThumbs(container) {
+    if (!container) return;
+    container.querySelectorAll("[data-gallery-thumb]").forEach(function (thumb) {
+      thumb.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var mainImg = container.querySelector("[data-main-image]");
+        if (mainImg) mainImg.src = thumb.src;
+        container.querySelectorAll("[data-gallery-thumb]").forEach(function (t) {
+          t.classList.toggle("active", t === thumb);
+        });
+      });
+    });
+  }
+
+  // Renders the description as its own block, separate from the
+  // price/type/size meta row. Omitted entirely when there isn't one, so
+  // older listings without a description don't show empty space.
+  function buildDescriptionHtml(props) {
+    if (!props.description) return "";
+    return '<div class="card-description">' + escapeHtml(props.description) + "</div>";
+  }
+
   function buildPopupHtml(props) {
+    var images = getImages(props);
     var adminActions = isAdmin
       ? '<div class="card-admin-actions">' +
           '<button class="icon-btn" data-popup-edit-id="' + props.id + '">Edit</button>' +
@@ -292,7 +468,8 @@
 
     return (
       '<div class="popup-card">' +
-        '<img class="card-image" src="' + (props.imageUrl || PLACEHOLDER_IMAGE) + '" alt="' + escapeHtml(props.title) + '" />' +
+        '<img class="card-image" data-main-image src="' + images[0] + '" alt="' + escapeHtml(props.title) + '" />' +
+        buildGalleryHtml(images) +
         '<div class="card-body">' +
           '<div class="card-top-row">' +
             '<div class="card-title">' + escapeHtml(props.title) + "</div>" +
@@ -304,6 +481,7 @@
             '<span class="dot"></span>' +
             '<span>' + escapeHtml(props.size) + '</span>' +
           "</div>" +
+          buildDescriptionHtml(props) +
           adminActions +
         "</div>" +
       "</div>"
@@ -325,6 +503,12 @@
         confirmDelete(id);
       });
     }
+    var popupEl = editBtn ? editBtn.closest(".popup-card") : (deleteBtn ? deleteBtn.closest(".popup-card") : null);
+    if (!popupEl) {
+      // Fall back to searching any open popup for the gallery strip.
+      popupEl = document.querySelector(".leaflet-popup-content .popup-card");
+    }
+    wireGalleryThumbs(popupEl);
   }
 
   function escapeHtml(str) {
@@ -361,6 +545,7 @@
 
     visibleFeatures.forEach(function (feature) {
       var props = feature.properties;
+      var images = getImages(props);
       var card = document.createElement("div");
       card.className = "property-card";
       card.dataset.id = props.id;
@@ -373,7 +558,8 @@
         : "";
 
       card.innerHTML =
-        '<img class="card-image" src="' + (props.imageUrl || PLACEHOLDER_IMAGE) + '" alt="' + escapeHtml(props.title) + '" />' +
+        '<img class="card-image" data-main-image src="' + images[0] + '" alt="' + escapeHtml(props.title) + '" />' +
+        buildGalleryHtml(images) +
         '<div class="card-body">' +
           '<div class="card-top-row">' +
             '<div class="card-title">' + escapeHtml(props.title) + "</div>" +
@@ -385,11 +571,13 @@
             '<span class="dot"></span>' +
             '<span>' + escapeHtml(props.size) + '</span>' +
           "</div>" +
+          buildDescriptionHtml(props) +
           adminActions +
         "</div>";
 
       card.addEventListener("click", function (e) {
         if (e.target.closest("[data-edit-id]") || e.target.closest("[data-delete-id]")) return;
+        if (e.target.closest("[data-gallery-thumb]")) return;
         focusFeature(props.id);
       });
 
@@ -407,6 +595,7 @@
           confirmDelete(props.id);
         });
       }
+      wireGalleryThumbs(card);
 
       container.appendChild(card);
     });
@@ -530,16 +719,32 @@
     document.getElementById("draw-geometry-btn").addEventListener("click", startDrawing);
 
     document.getElementById("field-image").addEventListener("change", function (e) {
-      var file = e.target.files && e.target.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function (evt) {
-        pendingImageDataUrl = evt.target.result;
-        var preview = document.getElementById("image-preview");
-        preview.src = pendingImageDataUrl;
-        preview.classList.remove("hidden");
-      };
-      reader.readAsDataURL(file);
+      var files = Array.prototype.slice.call(e.target.files || []);
+      e.target.value = ""; // always clear, so picking the same file again later still fires "change"
+      if (!files.length) return;
+
+      var remaining = MAX_IMAGES - pendingImages.length;
+      if (remaining <= 0) {
+        renderImagePreviewGrid();
+        return;
+      }
+
+      files.slice(0, remaining).forEach(function (file) {
+        readAndCompressImage(file, function (dataUrl) {
+          if (!dataUrl) return;
+          if (pendingImages.length >= MAX_IMAGES) return; // guard against async race past the cap
+          pendingImages.push(dataUrl);
+          renderImagePreviewGrid();
+        });
+      });
+    });
+
+    document.getElementById("image-preview-grid").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-remove-image-idx]");
+      if (!btn) return;
+      var idx = parseInt(btn.dataset.removeImageIdx, 10);
+      pendingImages.splice(idx, 1);
+      renderImagePreviewGrid();
     });
 
     document.getElementById("save-property-btn").addEventListener("click", saveProperty);
@@ -553,6 +758,52 @@
         cancelDrawing();
       }
     });
+  }
+
+  // Resizes/compresses an uploaded photo via canvas before it's stored as a
+  // data URL, so up to MAX_IMAGES photos per property stay well within
+  // localStorage limits. Falls back to the raw file if canvas isn't usable.
+  function readAndCompressImage(file, callback) {
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          callback(canvas.toDataURL("image/jpeg", IMAGE_JPEG_QUALITY));
+        } catch (err) {
+          callback(evt.target.result); // canvas failed — keep the original
+        }
+      };
+      img.onerror = function () { callback(evt.target.result); };
+      img.src = evt.target.result;
+    };
+    reader.onerror = function () { callback(null); };
+    reader.readAsDataURL(file);
+  }
+
+  function renderImagePreviewGrid() {
+    var grid = document.getElementById("image-preview-grid");
+    grid.innerHTML = "";
+    pendingImages.forEach(function (src, idx) {
+      var item = document.createElement("div");
+      item.className = "image-preview-item";
+      item.innerHTML =
+        '<img src="' + src + '" alt="Photo ' + (idx + 1) + '" />' +
+        '<button type="button" class="image-preview-remove" data-remove-image-idx="' + idx + '" title="Remove photo">&times;</button>';
+      grid.appendChild(item);
+    });
+
+    var note = document.getElementById("image-limit-note");
+    note.classList.toggle("hidden", pendingImages.length < MAX_IMAGES);
+
+    document.getElementById("field-image").disabled = pendingImages.length >= MAX_IMAGES;
   }
 
   function bindSegmented(containerId, onChange) {
@@ -579,16 +830,28 @@
     });
   }
 
+  // Guarded read/write for optional form fields — if a field doesn't exist
+  // in the HTML yet, these no-op instead of throwing, so one missing
+  // element can never block the whole modal from opening.
+  function getFieldValue(id) {
+    var el = document.getElementById(id);
+    return el ? el.value : "";
+  }
+
+  function setFieldValue(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.value = value;
+  }
+
   function openPropertyForm(idOrNull) {
     editingPropertyId = idOrNull;
     pendingGeometry = null;
-    pendingImageDataUrl = null;
+    pendingImages = [];
     tempPreviewLayer.clearLayers();
 
     document.getElementById("property-form-error").classList.add("hidden");
-    document.getElementById("image-preview").classList.add("hidden");
-    document.getElementById("image-preview").src = "";
     document.getElementById("field-image").value = "";
+    document.getElementById("field-image").disabled = false;
 
     var deleteBtn = document.getElementById("delete-property-btn");
 
@@ -600,15 +863,14 @@
       document.getElementById("field-title").value = feature.properties.title;
       document.getElementById("field-price").value = feature.properties.price;
       document.getElementById("field-size").value = feature.properties.size;
+      setFieldValue("field-description", feature.properties.description || "");
       setSegmentedValue("field-type", feature.properties.type);
       setSegmentedValue("field-status", feature.properties.status);
 
       pendingGeometry = JSON.parse(JSON.stringify(feature.geometry));
-
-      if (feature.properties.imageUrl) {
-        document.getElementById("image-preview").src = feature.properties.imageUrl;
-        document.getElementById("image-preview").classList.remove("hidden");
-      }
+      pendingImages = getImages(feature.properties).slice(0, MAX_IMAGES).filter(function (src) {
+        return src !== PLACEHOLDER_IMAGE;
+      });
 
       deleteBtn.classList.remove("hidden");
     } else {
@@ -616,19 +878,47 @@
       document.getElementById("field-title").value = "";
       document.getElementById("field-price").value = "";
       document.getElementById("field-size").value = "";
+      setFieldValue("field-description", "");
       setSegmentedValue("field-type", "Land");
       setSegmentedValue("field-status", "Available");
       deleteBtn.classList.add("hidden");
     }
 
+    renderImagePreviewGrid();
     updateGeometryStatus();
     openModal("property-modal");
+  }
+
+  // Computes the geodesic area (m²) of a drawn/edited parcel polygon,
+  // using the area helper bundled with Leaflet.draw.
+  function computePolygonArea(geometry) {
+    try {
+      if (!geometry || geometry.type !== "Polygon") return null;
+      var ring = geometry.coordinates[0];
+      var latlngs = ring.map(function (c) { return L.latLng(c[1], c[0]); });
+      if (window.L && L.GeometryUtil && L.GeometryUtil.geodesicArea) {
+        return L.GeometryUtil.geodesicArea(latlngs);
+      }
+    } catch (e) { /* ignore malformed geometry */ }
+    return null;
+  }
+
+  function formatArea(squareMeters) {
+    if (squareMeters >= 10000) {
+      return (squareMeters / 10000).toFixed(2) + " ha (" + Math.round(squareMeters).toLocaleString() + " m²)";
+    }
+    return Math.round(squareMeters).toLocaleString() + " m²";
   }
 
   function updateGeometryStatus() {
     var el = document.getElementById("geometry-status");
     if (pendingGeometry) {
-      el.textContent = "Location set ✓";
+      var text = "Location set ✓";
+      var area = computePolygonArea(pendingGeometry);
+      if (area != null) {
+        text += " — Area: " + formatArea(area);
+      }
+      el.textContent = text;
       el.classList.add("is-set");
     } else {
       el.textContent = "No location set yet";
@@ -649,10 +939,20 @@
     var drawBtn = document.getElementById("draw-geometry-btn");
     drawBtn.classList.add("is-drawing");
 
+    // On some touch devices a pinch/zoom gesture can be misread as a tap,
+    // which would drop an unwanted vertex while the admin is just zooming
+    // in for precision. Disabling the tap handler while drawing prevents
+    // that; it's re-enabled the moment drawing ends. Zooming itself
+    // (scroll wheel, pinch, +/- buttons) is never touched otherwise, so it
+    // keeps working normally — the admin can zoom in first, then click to
+    // place each corner point.
+    if (map.tap) map.tap.disable();
+
     if (type === "Land") {
       activeDrawHandler = new L.Draw.Polygon(map, {
         allowIntersection: false,
-        showArea: false,
+        showArea: true,   // live area readout (m² / ha) while tracing the parcel
+        metric: true,
         shapeOptions: { color: "#10B981", weight: 2 }
       });
     } else {
@@ -666,6 +966,7 @@
       activeDrawHandler.disable();
       activeDrawHandler = null;
     }
+    if (map.tap) map.tap.enable();
     document.getElementById("draw-geometry-btn").classList.remove("is-drawing");
     openModal("property-modal");
   }
@@ -681,6 +982,7 @@
 
     activeDrawHandler.disable();
     activeDrawHandler = null;
+    if (map.tap) map.tap.enable();
     document.getElementById("draw-geometry-btn").classList.remove("is-drawing");
 
     openModal("property-modal");
@@ -708,6 +1010,7 @@
     var title = document.getElementById("field-title").value.trim();
     var price = document.getElementById("field-price").value.trim();
     var size = document.getElementById("field-size").value.trim();
+    var description = getFieldValue("field-description").trim();
     var type = getSegmentedValue("field-type");
     var status = getSegmentedValue("field-status");
     var errorEl = document.getElementById("property-form-error");
@@ -724,6 +1027,10 @@
     }
     errorEl.classList.add("hidden");
 
+    var wasAdding = !editingPropertyId;
+    var images = pendingImages.slice(0, MAX_IMAGES);
+    var primaryImage = images[0] || PLACEHOLDER_IMAGE;
+
     if (editingPropertyId) {
       var idx = properties.findIndex(function (f) { return f.properties.id === editingPropertyId; });
       if (idx === -1) return;
@@ -735,9 +1042,11 @@
           title: title,
           price: price,
           size: size,
+          description: description,
           status: status,
           type: type,
-          imageUrl: pendingImageDataUrl || existing.properties.imageUrl || PLACEHOLDER_IMAGE
+          imageUrl: primaryImage,
+          images: images
         },
         geometry: pendingGeometry
       };
@@ -749,9 +1058,11 @@
           title: title,
           price: price,
           size: size,
+          description: description,
           status: status,
           type: type,
-          imageUrl: pendingImageDataUrl || PLACEHOLDER_IMAGE
+          imageUrl: primaryImage,
+          images: images
         },
         geometry: pendingGeometry
       });
@@ -761,6 +1072,10 @@
     tempPreviewLayer.clearLayers();
     closeModal("property-modal");
     renderAll();
+
+    if (wasAdding) {
+      fitMapToAllProperties(true); // zoom out so the newly-added property is visible too
+    }
   }
 
   function confirmDelete(id) {
